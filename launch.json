@@ -1,0 +1,17 @@
+{
+  "kind": "evm_project",
+  "token": {
+    "contract": "LaunchToken",
+    "name": "Genesis Research Token",
+    "symbol": "GENS",
+    "decimals": 18
+  },
+  "contracts": [],
+  "pool": {
+    "pairedCurrency": "0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127",
+    "fee": 12500,
+    "tickSpacing": 60,
+    "initialPrice": "79228162514264337593543950336"
+  },
+  "notes": "Token-only launch on Robinhood Chain (4663) through the standard IMD ProjectFactory, paired with canonical Robinhood IMD. src/LaunchToken.sol:LaunchToken has no constructor arguments and mints the fixed 1,000,000,000 GENS supply at 18 decimals once to its deploying factory. It is a plain ERC-20 with no owner, post-constructor mint, transfer tax, blacklist, pause, upgrade or additional hook swap fee. There are no application contracts or initialization calls; the factory supplies the LP, MerkleDistributor and initialization-only PoolInitializationGuard. Under the launch policy, 800,000,000 GENS (80%) seeds the pool, 100,000,000 GENS (10%) goes to the protocol Swarm distributor, and the remaining 100,000,000 GENS (10%) goes to requester/paying wallet 0x550011cadcc758969391050241b2fc43ed1a4b97. The standard pool fee is 1.25%; the requester retains its entire 80% share of the seeded LP position's fees and the network receives 20%, with no fee splitter or research-fund deduction. After verified launch, the requester separately transfers exactly 80,000,000 GENS (8% of fixed supply) to Genesis reserve wallet 0x4a532cbc877fbbd4950fdab65bfea2e8567b857b, leaving 20,000,000 GENS (2%) immediately available if there are no other wallet movements. This is a separate wallet action, not executed or enforced by the factory or token; neither holding has vesting. The manifest initialPrice is the required reference value; the deployer derives the opening price from the policy's 2,500 IMD opening market cap and token address ordering. Accepted tests are in test/; deployment, source-publication and claim instructions are in docs/DEPLOYMENT.md and docs/CLAIMS.md. This manifest does not assert deployment or explorer verification. No staking rewards, promised yield, fundraising contract, buyback, extra token or website redeployment is included. GENS-funded expedition checkout is not implemented or live. The existing Ethereum GenesisResearch contract and its archives are outside this launch and unchanged."
+}
