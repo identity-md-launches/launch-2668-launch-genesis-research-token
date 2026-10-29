@@ -204,34 +204,36 @@ contract LaunchTokenTest is Test {
     }
 
     function test_noAdminMintBurnTaxPauseBlacklistOrUpgradeEntryPoints() public {
-        string[20] memory signatures = [
-            "mint(address,uint256)",
-            "mint(uint256)",
-            "mint()",
-            "burn(uint256)",
-            "burnFrom(address,uint256)",
-            "owner()",
-            "transferOwnership(address)",
-            "setOwner(address)",
-            "setMinter(address)",
-            "pause()",
-            "unpause()",
-            "blacklist(address)",
-            "setBlacklist(address,bool)",
-            "setFee(uint256)",
-            "setTax(uint256)",
-            "upgradeTo(address)",
-            "upgradeToAndCall(address,bytes)",
-            "initialize(address)",
-            "initialize()",
-            "claim()"
+        // Correct ABI arguments are essential: malformed dynamic calldata can revert even
+        // when an unwanted upgrade/initialization function actually exists.
+        bytes[20] memory calls = [
+            abi.encodeWithSignature("mint(address,uint256)", alice, uint256(1)),
+            abi.encodeWithSignature("mint(uint256)", uint256(1)),
+            abi.encodeWithSignature("mint()"),
+            abi.encodeWithSignature("burn(uint256)", uint256(1)),
+            abi.encodeWithSignature("burnFrom(address,uint256)", address(this), uint256(1)),
+            abi.encodeWithSignature("owner()"),
+            abi.encodeWithSignature("transferOwnership(address)", alice),
+            abi.encodeWithSignature("setOwner(address)", alice),
+            abi.encodeWithSignature("setMinter(address)", alice),
+            abi.encodeWithSignature("pause()"),
+            abi.encodeWithSignature("unpause()"),
+            abi.encodeWithSignature("blacklist(address)", alice),
+            abi.encodeWithSignature("setBlacklist(address,bool)", alice, true),
+            abi.encodeWithSignature("setFee(uint256)", uint256(1)),
+            abi.encodeWithSignature("setTax(uint256)", uint256(1)),
+            abi.encodeWithSignature("upgradeTo(address)", address(token)),
+            abi.encodeWithSignature("upgradeToAndCall(address,bytes)", address(token), bytes("")),
+            abi.encodeWithSignature("initialize(address)", alice),
+            abi.encodeWithSignature("initialize()"),
+            abi.encodeWithSignature("claim()")
         ];
         address[3] memory callers = [address(this), alice, address(0x550011CAdCC758969391050241B2Fc43ED1a4B97)];
         for (uint256 i; i < callers.length; ++i) {
-            for (uint256 j; j < signatures.length; ++j) {
+            for (uint256 j; j < calls.length; ++j) {
                 vm.prank(callers[i]);
-                (bool ok,) = address(token).call(abi.encodeWithSignature(signatures[j], alice, uint256(1)));
-                assertFalse(ok, signatures[j]);
+                (bool ok,) = address(token).call(calls[j]);
+                assertFalse(ok, "prohibited entry point accepted valid calldata");
                 assertEq(token.totalSupply(), SUPPLY);
                 assertEq(token.balanceOf(address(this)), SUPPLY);
             }
@@ -267,8 +269,9 @@ contract LaunchTokenTest is Test {
         }
     }
 
+    /// forge-config: default.fuzz.runs = 1024
     function testFuzz_transferConservesSupply(address recipient, uint256 rawAmount) public {
-        vm.assume(recipient != address(0) && recipient != address(this));
+        if (recipient == address(0) || recipient == address(this)) recipient = alice;
         uint256 amount = bound(rawAmount, 0, SUPPLY);
         assertTrue(token.transfer(recipient, amount));
         assertEq(token.balanceOf(recipient), amount);
@@ -276,6 +279,7 @@ contract LaunchTokenTest is Test {
         assertEq(token.totalSupply(), SUPPLY);
     }
 
+    /// forge-config: default.fuzz.runs = 1024
     function testFuzz_transferOverBalanceRevertsAtomically(uint256 rawAmount) public {
         uint256 amount = bound(rawAmount, SUPPLY + 1, type(uint256).max);
         vm.expectRevert(
@@ -287,6 +291,7 @@ contract LaunchTokenTest is Test {
         assertEq(token.totalSupply(), SUPPLY);
     }
 
+    /// forge-config: default.fuzz.runs = 1024
     function testFuzz_transferFromAccountsExactly(uint256 rawAllowance, uint256 rawAmount) public {
         uint256 approved = bound(rawAllowance, 0, type(uint256).max - 1);
         uint256 amount = bound(rawAmount, 0, approved < SUPPLY ? approved : SUPPLY);
@@ -299,6 +304,7 @@ contract LaunchTokenTest is Test {
         assertEq(token.totalSupply(), SUPPLY);
     }
 
+    /// forge-config: default.fuzz.runs = 1024
     function testFuzz_insufficientAllowanceRevertsAtomically(uint256 rawAllowance, uint256 rawAmount) public {
         uint256 approved = bound(rawAllowance, 0, SUPPLY - 1);
         uint256 amount = bound(rawAmount, approved + 1, SUPPLY);

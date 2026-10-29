@@ -132,6 +132,74 @@ contract LaunchAllocationTest is Test {
         _assertConservation();
     }
 
+    /// forge-config: default.fuzz.runs = 1024
+    function testFuzz_reserveFundingAfterSpendingAtMostTheFreeShare(uint256 spentSeed) public {
+        uint256 spent = bound(spentSeed, 0, 20_000_000e18);
+        vm.prank(REQUESTER);
+        assertTrue(token.transfer(unrelatedWallet, spent));
+        vm.prank(REQUESTER);
+        assertTrue(token.transfer(RESERVE, 80_000_000e18));
+        assertEq(token.balanceOf(REQUESTER), 20_000_000e18 - spent);
+        assertEq(token.balanceOf(RESERVE), 80_000_000e18);
+        assertEq(token.balanceOf(unrelatedWallet), spent);
+        assertEq(token.balanceOf(poolCustody), 800_000_000e18);
+        assertEq(token.balanceOf(swarmDistributor), 100_000_000e18);
+        _assertConservation();
+    }
+
+    /// forge-config: default.fuzz.runs = 1024
+    function testFuzz_underfundedReserveTransferCannotUseProtocolAllocations(uint256 spentSeed) public {
+        uint256 spent = bound(spentSeed, 20_000_000e18 + 1, 100_000_000e18);
+        uint256 remaining = 100_000_000e18 - spent;
+        vm.prank(REQUESTER);
+        token.transfer(unrelatedWallet, spent);
+        vm.expectRevert(
+            abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, REQUESTER, remaining, 80_000_000e18)
+        );
+        vm.prank(REQUESTER);
+        token.transfer(RESERVE, 80_000_000e18);
+        assertEq(token.balanceOf(REQUESTER), remaining);
+        assertEq(token.balanceOf(RESERVE), 0);
+        assertEq(token.balanceOf(unrelatedWallet), spent);
+        assertEq(token.balanceOf(poolCustody), 800_000_000e18);
+        assertEq(token.balanceOf(swarmDistributor), 100_000_000e18);
+        _assertConservation();
+    }
+
+    function test_requesterApprovalDoesNotFollowTokensIntoReserve() public {
+        vm.prank(REQUESTER);
+        token.approve(unrelatedWallet, type(uint256).max);
+        vm.prank(REQUESTER);
+        token.transfer(RESERVE, 80_000_000e18);
+        assertEq(token.allowance(RESERVE, unrelatedWallet), 0);
+        vm.expectRevert(
+            abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, unrelatedWallet, 0, 80_000_000e18)
+        );
+        vm.prank(unrelatedWallet);
+        token.transferFrom(RESERVE, unrelatedWallet, 80_000_000e18);
+        vm.prank(unrelatedWallet);
+        assertTrue(token.transferFrom(REQUESTER, unrelatedWallet, 20_000_000e18));
+        assertEq(token.allowance(REQUESTER, unrelatedWallet), type(uint256).max);
+        assertEq(token.balanceOf(REQUESTER), 0);
+        assertEq(token.balanceOf(RESERVE), 80_000_000e18);
+        assertEq(token.balanceOf(unrelatedWallet), 20_000_000e18);
+        _assertConservation();
+    }
+
+    function test_requesterAndFactoryCannotClawBackReserveTokens() public {
+        vm.prank(REQUESTER);
+        token.transfer(RESERVE, 80_000_000e18);
+        address[2] memory callers = [REQUESTER, address(factory)];
+        for (uint256 i; i < callers.length; ++i) {
+            vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, callers[i], 0, 1));
+            vm.prank(callers[i]);
+            token.transferFrom(RESERVE, REQUESTER, 1);
+        }
+        assertEq(token.balanceOf(RESERVE), 80_000_000e18);
+        assertEq(token.balanceOf(REQUESTER), 20_000_000e18);
+        _assertConservation();
+    }
+
     function _assertConservation() internal view {
         assertEq(token.totalSupply(), SUPPLY);
         assertEq(
